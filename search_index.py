@@ -23,14 +23,11 @@ def search(self, query: str, compressed: bool = True) -> Dict[str, Union[List[in
     start_time = time.time()
     
     if compressed:
-        # Получаем сжатые дельты в виде битовых строк
         encoded_deltas = self.index_data['compressed'].get(query, [])
         results = []
         if encoded_deltas:
-            # Восстанавливаем исходные doc_id из дельт
             prev_id = 0
             for delta_code in encoded_deltas:
-                # Декодируем Delta-код Элиаса
                 delta = self._elias_delta_decode(delta_code)
                 prev_id += delta
                 results.append(prev_id)
