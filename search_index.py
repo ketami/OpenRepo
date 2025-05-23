@@ -16,24 +16,56 @@ class IndexSearcher:
         with open(self.index_file, 'rb') as f:
             self.index_data = pickle.load(f)
 
-    def search(self, query: str, compressed: bool = True) -> Dict[str, Union[List[int], float]]:
-        if self.index_data is None:
-            self.load_index()
-            
-        start_time = time.time()
+def search(self, query: str, compressed: bool = True) -> Dict[str, Union[List[int], float]]:
+    if self.index_data is None:
+        self.load_index()
         
-        if compressed:
-            results = self.index_data['compressed'].get(query, [])
+    start_time = time.time()
+    
+    if compressed:
+        # Получаем сжатые дельты в виде битовых строк
+        encoded_deltas = self.index_data['compressed'].get(query, [])
+        results = []
+        if encoded_deltas:
+            # Восстанавливаем исходные doc_id из дельт
+            prev_id = 0
+            for delta_code in encoded_deltas:
+                # Декодируем Delta-код Элиаса
+                delta = self._elias_delta_decode(delta_code)
+                prev_id += delta
+                results.append(prev_id)
+    else:
+        results = self.index_data['uncompressed'].get(query, [])
+        
+    search_time = time.time() - start_time
+    
+    return {
+        'results': results,
+        'time_sec': search_time,
+        'count': len(results)
+    }
+
+    @staticmethod
+    def _elias_delta_decode(encoded: str) -> int:
+        if encoded == '0':
+            return 0
+        
+        zero_pos = encoded.find('0')
+        if zero_pos == -1:
+            raise ValueError("Invalid Delta code")
+        
+        gamma_part = encoded[:zero_pos + 1]
+        n = len(gamma_part) - 1  
+        length = int('1' + encoded[zero_pos + 1:zero_pos + 1 + n], 2) if n > 0 else 1
+        
+        remainder_part = encoded[zero_pos + 1 + n:]
+        if not remainder_part:
+            remainder = 0
         else:
-            results = self.index_data['uncompressed'].get(query, [])
-            
-        search_time = time.time() - start_time
+            remainder = int('1' + remainder_part, 2)
         
-        return {
-            'results': results,
-            'time_sec': search_time,
-            'count': len(results)
-        }
+        return (1 << (length - 1)) + remainder
+
 
     def evaluate(self, query: str) -> Dict[str, Union[float, int]]:
         if self.index_data is None:
