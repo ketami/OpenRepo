@@ -52,11 +52,12 @@ class IndexCreator:
     def compress_index(self) -> Dict[str, List[str]]:
         if self.inverted_index is None:
             self.create_inverted_index()
-            
-        self.inverted_index_compressed = {
-            word: [self.elias_delta_encode(doc_id) for doc_id in doc_ids]
-            for word, doc_ids in self.inverted_index.items()
-        }
+        
+        self.inverted_index_compressed = {}
+        for word, doc_ids in self.inverted_index.items():
+            deltas = [doc_ids[0]] + [doc_ids[i] - doc_ids[i-1] for i in range(1, len(doc_ids))]
+            self.inverted_index_compressed[word] = [self.elias_delta_encode(delta) for delta in deltas]
+        
         return self.inverted_index_compressed
 
     def save_index(self, output_file: str = 'index.pkl'):
